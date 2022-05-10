@@ -204,11 +204,31 @@ interface IPictureMixerConfigMoveLimitMode {
 
 `add(url: string)` 添加图片
 
-##### save
+##### save 🆕
 
-`async save(): Promise<IPictureMixerSaveResult>` 保存图片
+`async save(p: IPictureMixerSaveParams): Promise<IPictureMixerSaveResult>` 保存图片
 
 ``` typescript
+/**
+ * 保存图片的参数
+ */
+export interface IPictureMixerSaveParams {
+  /**
+   * 图片格式，默认为 image/png
+   */
+  type?: keyof IPictureMixerSaveType
+  /**
+   * 在指定图片格式为 image/jpeg 或 image/webp的情况下，可以从 0 到 1 的区间内选择图片的质量。如果超出取值范围，将会使用默认值 0.92。其他参数会被忽略。
+   */
+  encoderOptions?: number
+}
+
+interface IPictureMixerSaveType {
+  'image/png': string
+  'image/jpeg': string
+  'image/webp': string
+}
+
 export interface IPictureMixerSaveResult {
   /** BASE64字符串 */
   base64: string,

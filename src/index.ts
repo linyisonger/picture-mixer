@@ -3,6 +3,8 @@ import { Vector2 } from "ru-toolkit-mathematics"
  * 图片混合器配置
  */
 export interface IPictureMixerConfig {
+  /** 1.0.1 用于改变图片清晰度 尽量不要太大 */
+  definition?: number
   /** 渲染间隔 ms */
   renderInterval?: number
   /** 允许缩放 存在bug */
@@ -79,6 +81,26 @@ export interface IPictureMixerSaveResult {
   /** 渲染的图片高度 */
   height: number
 }
+/**
+ * 保存图片的参数
+ */
+export interface IPictureMixerSaveParams {
+  /**
+   * 图片格式，默认为 image/png
+   */
+  type?: keyof IPictureMixerSaveType
+  /**
+   * 在指定图片格式为 image/jpeg 或 image/webp的情况下，可以从 0 到 1 的区间内选择图片的质量。如果超出取值范围，将会使用默认值 0.92。其他参数会被忽略。
+   */
+  encoderOptions?: number
+}
+
+interface IPictureMixerSaveType {
+  'image/png': string
+  'image/jpeg': string
+  'image/webp': string
+}
+
 interface IPictureMixerConfigMoveLimitMode {
   /** 默认 */
   none: string
@@ -120,6 +142,7 @@ class Picture {
 }
 /** 默认值 */
 const defaultConfig: IPictureMixerConfig = {
+  definition: 1,
   renderInterval: 20,
   allowScale: false,
   allowMove: true,
@@ -224,10 +247,6 @@ Component({
     config: Object
   },
   data: {
-    m_width: 0,
-    m_height: 0,
-    m_unit: "",
-
     m_mixer_canvas: null,
     m_mixer_context: null,
     r_width: 0,
@@ -269,6 +288,7 @@ Component({
 
       let m_remove_url = config?.remove?.url || defaultConfig.remove?.url;
 
+      let m_definition: number = config?.definition || defaultConfig.definition
 
       this.data.m_point_raduis = m_point_raduis;
       this.data.m_point_color = m_point_color;
@@ -291,9 +311,9 @@ Component({
         const r_height = res[0].height;
         const m_mixer_context = m_mixer_canvas.getContext('2d')
 
-        m_mixer_canvas.width = r_width * dpr
-        m_mixer_canvas.height = r_height * dpr
-        m_mixer_context.scale(dpr, dpr);
+        m_mixer_canvas.width = r_width * dpr * m_definition
+        m_mixer_canvas.height = r_height * dpr * m_definition
+        m_mixer_context.scale(dpr * m_definition, dpr * m_definition);
 
         this.data.m_mixer_canvas = m_mixer_canvas;
         this.data.m_mixer_context = m_mixer_context;
@@ -533,13 +553,13 @@ Component({
         this.requestAnimationFrame();
       }
     },
-    async save(): Promise<IPictureMixerSaveResult> {
+    async save(p: IPictureMixerSaveParams): Promise<IPictureMixerSaveResult> {
       let { m_mixer_canvas, r_width, r_height } = this.data
       this.data.m_picture_op = -1;
       this.requestAnimationFrame();
       return new Promise(async (resolve, reject) => {
         try {
-          let base64 = m_mixer_canvas.toDataURL();
+          let base64 = m_mixer_canvas.toDataURL(p.type, p.encoderOptions);
           let tempFilePath = await base64ToTempFilePath(base64)
           resolve({
             base64,
