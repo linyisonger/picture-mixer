@@ -124,6 +124,8 @@ button {
  * 图片混合器配置
  */
 export interface IPictureMixerConfig {
+  /** 1.0.1 用于改变图片清晰度 尽量不要太大 */
+  definition?: number
   /** 渲染间隔 ms */
   renderInterval?: number
   /** 允许缩放 存在bug */
