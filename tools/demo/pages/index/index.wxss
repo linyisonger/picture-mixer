@@ -1,0 +1,19 @@
+page {
+  display: flex;
+  flex-direction: column;
+}
+
+#pm,
+.preview {
+  box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.3);
+  margin: 20px auto;
+}
+
+.op {
+  display: flex;
+  justify-content: space-around;
+}
+
+button {
+  display: inline-flex;
+}

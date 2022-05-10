@@ -1,0 +1,6 @@
+<p-mixer id="pm"></p-mixer>
+<view class="op">
+  <button type="primary" bindtap="add">添加</button>
+  <button type="primary" bindtap="save">保存</button>
+</view>
+<image class="preview" src="{{preSrc}}" style="width: {{w}}px; height: {{h}}px;" mode="scaleToFill"></image>

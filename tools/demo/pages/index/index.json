@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "图片混合组件",
+  "usingComponents": {
+    "p-mixer": "../../components/index"
+  }
+}

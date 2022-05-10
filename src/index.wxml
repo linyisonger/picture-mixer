@@ -1,0 +1,3 @@
+<view class="pm-canvas">
+    <canvas type="2d" class="canvas mixer" id="mixer" bindtouchstart="touchstart" bindtouchmove="touchmove"></canvas>
+</view>

@@ -1,0 +1,15 @@
+:host {
+  display: inline-flex;
+  overflow: hidden;
+  width: 600rpx;
+  height: 600rpx;
+}
+.pm-canvas {
+  position: relative;
+  display: inline-flex;
+}
+.pm-canvas,
+.mixer {
+  width: inherit;
+  height: inherit;
+}

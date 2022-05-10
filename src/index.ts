@@ -1,0 +1,557 @@
+import { Vector2 } from "ru-toolkit-mathematics"
+/**
+ * 图片混合器配置
+ */
+export interface IPictureMixerConfig {
+  /** 渲染间隔 ms */
+  renderInterval?: number
+  /** 允许缩放 存在bug */
+  allowScale?: boolean
+  /** 允许移动 */
+  allowMove?: boolean
+  /** 允许删除 */
+  allowRemove?: boolean
+  /**
+   *  允许自动设置置顶
+   *  逻辑点击哪个图片哪个图片置顶
+   */
+  allowAutoSetTop?: boolean
+  /** 背景颜色 */
+  background?: string
+  /** 点 */
+  point?: {
+    /** 颜色 点 */
+    color?: string,
+    /** 半径 */
+    raduis?: number,
+  },
+  /** 线 */
+  line?: {
+    /** 颜色 线 */
+    color?: string,
+    /** 宽度 */
+    width?: number
+  },
+  /** 缩放 */
+  scale?: {
+    /** 最小宽度 */
+    minWidth?: number
+    /** 最大高度 */
+    minHeight?: number
+  },
+  /** 移动 */
+  move?: {
+    limitMode?: keyof IPictureMixerConfigMoveLimitMode
+  }
+  /** 添加 */
+  add?: {
+    /** 添加数量 */
+    count?: number,
+    /** 宽度比例 0~1 */
+    scaleWidth?: number
+    /** 高度比例 0~1 */
+    scaleHeight?: number
+  },
+  /** 删除 */
+  remove?: {
+    /** 图片地址 */
+    url?: string
+    /** 轴心点 0~1 */
+    pivotX?: number,
+    pivotY?: number,
+    /** 相对坐标 */
+    offsetX?: number
+    offsetY?: number
+    width?: number
+    height?: number
+  }
+}
+/**
+ * 保存的返回值
+ */
+export interface IPictureMixerSaveResult {
+  /** BASE64字符串 */
+  base64: string,
+  /** 临时图片 */
+  tempFilePath: string,
+  /** 渲染的图片宽度 */
+  width: number,
+  /** 渲染的图片高度 */
+  height: number
+}
+interface IPictureMixerConfigMoveLimitMode {
+  /** 默认 */
+  none: string
+  /** 限制图片 */
+  picture: string
+  /** 限制点 */
+  point: string
+}
+enum PictureOpMode {
+  /** 无 */
+  none = 0,
+  /** 移动 */
+  move = 1,
+  /** 缩放 */
+  scale = 2,
+}
+interface IPictureImg {
+  width: number
+  height: number
+}
+class Picture {
+  url: string
+  x: number
+  y: number
+  width: number
+  height: number
+  img: IPictureImg
+  /**
+   * 获取四个点坐标
+   */
+  get points(): Vector2[] {
+    return [
+      Vector2.c(this.x, this.y),
+      Vector2.c(this.x + this.width, this.y),
+      Vector2.c(this.x + this.width, this.y + this.height),
+      Vector2.c(this.x, this.y + this.height),
+    ]
+  }
+}
+/** 默认值 */
+const defaultConfig: IPictureMixerConfig = {
+  renderInterval: 20,
+  allowScale: false,
+  allowMove: true,
+  allowRemove: true,
+  allowAutoSetTop: true,
+  background: "#fff",
+  point: {
+    color: "#B4CF66",
+    raduis: 10,
+  },
+  line: {
+    color: "#B4CF66",
+    width: 2
+  },
+  scale: {
+    minWidth: 40,
+    minHeight: 40
+  },
+  move: {
+    limitMode: 'point'
+  },
+  add: {
+    count: 5,
+    scaleWidth: .6,
+    scaleHeight: .4,
+  },
+  remove: {
+    url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACtWK6eAAAHwklEQVR4Xu3cXXLcVBCGYdkFrAJyC1kFyc7CymJWEa4DqwiURU2oFDgej0dNq3WO+8lVftTd57yfXkuamuhm8QsBBJ4kcIMNAgg8TYAgzg4ELhAgiNMDAYI4BxCIEXAFiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhABBmgRtmzECBIlxU9WEAEGaBG2bMQIEiXFT1YQAQZoEbZsxAgSJcVPVhEAbQT68+u7dfzO9XZb19Of7ZfnM4PTn0++//vtN58H9/d3rP/6621Sz88Efvv/mzXJ7++brMZf2/4XJlqW9/vjpAd8ttSMf20aQ33749v1yc/PoRMkMZ72/fzuiIDe3t+8z9/mo17re/fT7n293nXFQc4IkgidIIsxBWhEkMQiCJMIcpBVBEoMgSCLMQVoRJDEIgiTCHKQVQRKDIEgizEFaESQxCIIkwhykFUESgyBIIsxBWhEkMQiCJMIcpBVBEoMgSCLMQVoRJDEIgiTCHKQVQRKDIEgizEFaEeTIIALfYar4TtlmJIF9bJ5xUAFBDgL/eWzgxCJIbWAEqeX9cBpBjqR/1WyCXIVpp4MIshPYvLYEyWO5vRNBtjMrriBIMfAH4whyJP2rZhPkKkw7HUSQncDmtSVIHsvtnQiynVlxBUGKgbvFOhL49tkE2c4sr8IVJI/lTp0IshPYq9oS5CpMRx5EkCPpE+RI+lfNbiPI1y+O+0LnywvUztFal2Xfl6Gt6916c/PrudlPrWtd1ze7v99rWX7ZsqbTsT9+/HS25qqzcOCD2giyNYPTGwl3f+Ha1kUVHT/it5KLtv5oDEGeIE+QsV6hSpCjCBDkEQFXkH+RuIIQhCAXfjgThCAEIcj2+zfPIJ5BTmeNK4griCuIK4gryBYCHtI9pD97vrjFcovlFuuCJgQhCEEIcpaAWyy3WG6xLhAgCEGeFSRygHdWRaiNXeNj3sR8CJIIc5BWBEkMgiCJMAdpRZDEIAiSCHOQVgRJDIIgiTAHaUWQxCAIkghzkFYESQyCIIkwB2lFkMQgCJIIc5BWBEkMgiCJMAdpRZDEIAiSCHOQVgRJDIIgiTAHaUWQxCAIkghzkFYEeSKI09fdl9vbN1tyulnXn/d+qduW9Xw+9sLL6Z7sdX9/9/oPX3c/8SHIBUG8OG6zji+ugCAEeUTA193/RUIQghDkwnWPIAQhCEG23xr7P+ke0j2kX/CGIAQhCEHOEvCQ7iH92XsuVxBXEFcQVxBXkGd+VPoUy6dYPsXyKdazd1SPDnCL5RbLLZZbLLdYbrH+IfBSvmn7Uvax/Zp+TEWbZ5CXcmK9lH0cc7pvn0qQ7czyKtb17qff/3y7pSFBttD6/8cS5P8zjHcgSJxdUSVBikCffxp2BTkS/zWzCXINpb2OcQXZi2xaX4KkoQw0IkgAWm0JQWp5P5xGkCPpXzWbIFdh2ukgguwENq8tQfJYbu9EkO3MiisIUgz8wTiCHEn/qtkEuQrTTgcRZCeweW0JksdyWZfll3PtbpfTP53/9ePHT2drnjr+w6vv3m2dsS7L2Zq0rQdET5u9cyOCJAIe8b+qlnxtnyCJZ9FBrSq+w0SQg8LdcawrSCJcgiTCHKQVQRKDIEgizEFaESQxCIIkwhykFUESgyBIIsxBWhEkMQiCJMIcpBVBEoMgSCLMQVoRJDEIgiTCHKQVQRKDIEgizEFaESQxCIIkwhykFUESgyBIIsxBWrURZBDeljEZAYJMFpjl1hIgSC1v0yYjQJDJArPcWgIEqeVt2mQECDJZYJZbS4AgtbxNm4wAQSYLzHJrCRCklrdpkxEgyGSBWW4tAYLU8jZtMgIEmSwwy60lQJBa3qZNRoAgkwVmubUECFLL27TJCBBkssAst5YAQWp5mzYZAYJMFpjl1hIgSC1v0yYjQJDJArPcWgIEqeVt2mQECDJZYJZbS4AgtbxNm4wAQSYLzHJrCRCklrdpkxEgyGSBWW4tAYLU8jZtMgIEmSwwy60lQJBa3qZNRoAgkwVmubUECFLL27TJCBBkssAst5YAQWp5mzYZAYJMFpjl1hIgSC1v0yYjQJDJArPcWgIEqeVt2mQECDJZYJZbS4AgtbxNm4wAQSYLzHJrCRCklrdpkxEgyGSBWW4tAYLU8jZtMgIEmSwwy60lQJBa3qZNRoAgkwVmubUECFLL27TJCBBkssAst5YAQWp5mzYZAYJMFpjl1hL4G4x8FAWqmgeAAAAAAElFTkSuQmCC',
+    pivotX: 1,
+    pivotY: 0,
+    offsetX: 0,
+    offsetY: 0,
+    width: 30,
+    height: 30,
+  }
+}
+/**
+ * 缩放
+ * @param ow 源图宽 
+ * @param oh 源图高
+ * @param tw 目标宽
+ * @param th 目标高
+ */
+const scaling = (ow: number, oh: number, tw: number, th: number) => {
+  let s = 0;
+  if (ow > oh) {
+    s = ow / oh;
+    ow = tw;
+    oh = ow / s
+  }
+  else {
+    s = ow / oh;
+    oh = th;
+    ow = oh * s
+  }
+
+  if (th < oh) {
+    s = ow / oh;
+    oh = th;
+    ow = oh * s
+  }
+
+  if (tw < ow) {
+    s = ow / oh;
+    ow = tw;
+    oh = ow / s
+  }
+  return { ow, oh }
+}
+/**
+ * 获取临时图片
+ * @param base64 
+ * @returns 
+ */
+const base64ToTempFilePath = (base64: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const fs = wx.getFileSystemManager();
+    const times = new Date().getTime();
+    const tempFilePath = wx.env.USER_DATA_PATH + '/' + times + '.png';
+    fs.writeFile({
+      filePath: tempFilePath,
+      data: base64.split(',')[1],
+      encoding: 'base64',
+      success: (res) => {
+        resolve(tempFilePath)
+      },
+      fail: (err) => {
+        reject(err)
+      }
+    });
+  })
+}
+/**
+ * 获取时间戳
+ */
+const timestamp = () => {
+  return new Date().getTime();
+}
+Component({
+  properties: {
+    /** 配置 */
+    config: Object
+  },
+  data: {
+    m_width: 0,
+    m_height: 0,
+    m_unit: "",
+
+    m_mixer_canvas: null,
+    m_mixer_context: null,
+    r_width: 0,
+    r_height: 0,
+
+    m_pictures: [] as Picture[],
+    m_picture_op: -1,
+    m_picture_point_op: -1,
+    m_point_raduis: 0,
+    m_point_color: "",
+    m_line_color: "",
+    m_line_width: 0,
+    m_render_interval: 0, // 限制的渲染时间
+    m_op_mode: PictureOpMode.none, // 操作的模式
+    m_move_touch_start: null, // 移动开始接触的坐标
+    m_move_start: null, // 移动开始的坐标
+    m_move_diagonal: null, // 移动点的对角点坐标
+    m_move_limit_mode: "", // 移动范围模式
+    m_remove_img: null, // 移除图像
+    m_remove_pic: null,
+
+    lasttime: 0, // 计算间隔时间
+  },
+  lifetimes: {
+    ready() {
+      let config = this.properties.config;
+
+      let m_point_raduis = config?.point?.raduis || defaultConfig.point.raduis
+      let m_point_color = config?.point?.color || defaultConfig.point.color;
+
+      let m_line_color = config?.line?.color || defaultConfig.line.color;
+      let m_line_width = config?.line?.width || defaultConfig.line.width;
+      let m_render_interval = config?.renderInterval || defaultConfig.renderInterval
+
+      let m_scale_min_width = config?.scale?.minWidth || defaultConfig.scale.minWidth;
+      let m_scale_min_height = config?.scale?.minHeight || defaultConfig.scale.minHeight;
+
+      let m_move_limit_mode = config?.move?.limitMode || defaultConfig.move?.limitMode;
+
+      let m_remove_url = config?.remove?.url || defaultConfig.remove?.url;
+
+
+      this.data.m_point_raduis = m_point_raduis;
+      this.data.m_point_color = m_point_color;
+      this.data.m_line_color = m_line_color;
+      this.data.m_line_width = m_line_width;
+      this.data.m_render_interval = m_render_interval;
+      this.data.m_scale_min_width = m_scale_min_width;
+      this.data.m_scale_min_height = m_scale_min_height;
+      this.data.m_move_limit_mode = m_move_limit_mode
+
+
+      const dpr = wx.getSystemInfoSync().pixelRatio
+      const q = this.createSelectorQuery();
+
+      q.select('#mixer').fields({ node: true, size: true })
+      q.exec((res) => {
+
+        const m_mixer_canvas = res[0].node;
+        const r_width = res[0].width;
+        const r_height = res[0].height;
+        const m_mixer_context = m_mixer_canvas.getContext('2d')
+
+        m_mixer_canvas.width = r_width * dpr
+        m_mixer_canvas.height = r_height * dpr
+        m_mixer_context.scale(dpr, dpr);
+
+        this.data.m_mixer_canvas = m_mixer_canvas;
+        this.data.m_mixer_context = m_mixer_context;
+        this.data.r_width = r_width;
+        this.data.r_height = r_height;
+
+        let m_remove_img = m_mixer_canvas.createImage();
+        m_remove_img.src = m_remove_url;
+        m_remove_img.onload = () => {
+          this.data.m_remove_img = m_remove_img;
+        }
+
+        this.requestAnimationFrame();
+      });
+    }
+  },
+  methods: {
+    requestAnimationFrame() {
+      let config = this.properties.config;
+      let { m_mixer_canvas, m_remove_img, m_line_color, m_line_width, m_point_raduis, m_point_color, r_width, r_height, m_mixer_context, m_pictures, m_picture_op } = this.data
+
+      let allow_scale: boolean = config?.allowScale || defaultConfig.allowScale
+      let allow_remove: boolean = config?.allowRemove || defaultConfig.allowRemove
+
+      let background: string = config?.background || defaultConfig.background
+
+      m_mixer_context.clearRect(0, 0, r_width, r_height)
+      m_mixer_context.fillStyle = background;
+      m_mixer_context.fillRect(0, 0, r_width, r_height)
+
+      // 按顺序加载图片内容
+      for (let i = 0; i < m_pictures.length; i++) {
+        const picture = m_pictures[i];
+        m_mixer_context.drawImage(picture.img, picture.x, picture.y, picture.width, picture.height);
+      }
+      // 给索引增加可操作点
+      if (m_picture_op != -1) {
+        const picture: Picture = m_pictures[m_picture_op];
+        m_mixer_context.beginPath();
+        m_mixer_context.strokeStyle = m_line_color;
+        m_mixer_context.lineWidth = m_line_width;
+        m_mixer_context.fillStyle = m_point_color;
+
+        for (let i = 0; i < picture.points.length; i++) {
+          let tmp = picture.points[i];
+          i == 0 ? m_mixer_context.moveTo(tmp.x, tmp.y) : m_mixer_context.lineTo(tmp.x, tmp.y)
+        }
+        m_mixer_context.closePath();
+        m_mixer_context.stroke()
+
+        if (allow_scale) {
+          // 点
+          for (let i = 0; i < picture.points.length; i++) {
+            m_mixer_context.lineWidth = 1;
+            let tmp = picture.points[i];
+            m_mixer_context.beginPath();
+            m_mixer_context.arc(tmp.x, tmp.y, m_point_raduis - 1, 0, 2 * Math.PI);
+            m_mixer_context.stroke();
+            m_mixer_context.fill();
+          }
+        }
+
+        /** 允许删除 */
+        if (allow_remove) {
+          let remove_width = config?.remove?.width || defaultConfig.remove.width;
+          let remove_height = config?.remove?.height || defaultConfig.remove.height;
+          let remove_pivotX = config?.remove?.pivotX || defaultConfig.remove.pivotX;
+          let remove_pivotY = config?.remove?.pivotY || defaultConfig.remove.pivotY;
+          let remove_x = picture.x + picture.width * remove_pivotX - (config?.remove?.offsetX || defaultConfig.remove.offsetX) - remove_width / 2;
+          let remove_y = picture.y + picture.height * remove_pivotY - (config?.remove?.offsetY || defaultConfig.remove.offsetY) - remove_height / 2;
+
+          let remove_pic = new Picture();
+          remove_pic.img = m_remove_img;
+          remove_pic.x = remove_x;
+          remove_pic.y = remove_y;
+          remove_pic.width = remove_width;
+          remove_pic.height = remove_height;
+          this.data.m_remove_pic = remove_pic
+          // 删除图标
+          m_mixer_context.drawImage(m_remove_img, remove_x, remove_y, remove_width, remove_height);
+        }
+      };
+    },
+    touchstart(e) {
+      let config = this.properties.config;
+
+      let { m_point_raduis, m_picture_op, m_picture_point_op } = this.data;
+      // 允许缩放
+      let allow_scale: boolean = config?.allowScale || defaultConfig.allowScale
+
+      let allow_remove: boolean = config?.allowRemove || defaultConfig.allowRemove
+      // 自动设置置顶
+      let allow_auto_set_top: boolean = config?.allowAutoSetTop || defaultConfig.allowAutoSetTop
+
+      let m_pictures: Picture[] = this.data.m_pictures;
+      let { x, y } = e.changedTouches[0]
+
+      let m_move_touch_start = Vector2.c(x, y);
+
+      this.data.m_move_touch_start = m_move_touch_start;
+      // 初始化
+      this.data.m_op_mode = PictureOpMode.none;
+
+      // 删除
+      if (allow_remove) {
+        let m_remove_pic: Picture = this.data.m_remove_pic;
+        if (m_picture_op != -1 && Vector2.checkInRectangle(Vector2.c(x, y), m_remove_pic.points[0], m_remove_pic.points[1], m_remove_pic.points[2])) {
+          m_pictures.splice(m_picture_op, 1);
+          m_picture_op = -1;
+          this.data.m_picture_op = m_picture_op;
+        }
+      }
+      // 判断是否缩放图片
+      if (m_picture_op != -1 && allow_scale) {
+        const picture = m_pictures[m_picture_op];
+        m_picture_point_op = - 1;
+        for (let i = 0; i < picture.points.length; i++) {
+          const p = picture.points[i];
+          if (Vector2.distance(m_move_touch_start, p) < m_point_raduis) {
+            m_picture_point_op = i;
+            this.data.m_op_mode = PictureOpMode.scale;
+            this.data.m_move_start = Vector2.c(p.x, p.y);
+            this.data.m_move_diagonal = Vector2.c(picture.points[(i + 2) % 4].x, picture.points[(i + 2) % 4].y)
+            break;
+          }
+        }
+        this.data.m_picture_point_op = m_picture_point_op
+      }
+      // 判断是否移动图片   
+      if (m_pictures.length > 0 && m_picture_point_op == -1) {
+        m_picture_op = -1;
+        for (let i = m_pictures.length - 1; i >= 0; i--) {
+          const picture: Picture = m_pictures[i];
+          if (Vector2.checkInRectangle(Vector2.c(x, y), picture.points[0], picture.points[1], picture.points[2])) {
+            m_picture_op = i;
+            this.data.m_op_mode = PictureOpMode.move;
+            this.data.m_move_start = Vector2.c(picture.x, picture.y);
+            break;
+          }
+        }
+        // 交换位置
+        if (allow_auto_set_top && m_picture_op != -1 && m_picture_op != m_pictures.length - 1) {
+          let tmp = m_pictures[m_picture_op];
+          m_pictures[m_picture_op] = m_pictures[m_pictures.length - 1];
+          m_pictures[m_pictures.length - 1] = tmp;
+          m_picture_op = m_pictures.length - 1;
+        }
+        this.data.m_picture_op = m_picture_op;
+      }
+      this.requestAnimationFrame()
+    },
+    touchmove(e) {
+      let { m_move_limit_mode, m_picture_op, m_move_diagonal, m_point_raduis, r_width, r_height, m_pictures, lasttime, m_render_interval, m_move_touch_start, m_move_start, m_picture_point_op, m_scale_min_width, m_scale_min_height } = this.data;
+      if (m_picture_op == -1 || timestamp() - lasttime < m_render_interval) return;
+      this.data.lasttime = timestamp();
+      let { x, y } = e.changedTouches[0]
+
+      let limitMode: keyof IPictureMixerConfigMoveLimitMode = m_move_limit_mode;
+      let picture = m_pictures[m_picture_op];
+
+      if (this.data.m_op_mode == PictureOpMode.move) {
+        picture.x = m_move_start.x + x - m_move_touch_start.x;
+        picture.y = m_move_start.y + y - m_move_touch_start.y;
+      }
+      else if (this.data.m_op_mode == PictureOpMode.scale) {
+
+        let point = picture.points[m_picture_point_op]
+
+        point.x = m_move_start.x + x - m_move_touch_start.x;
+        point.y = m_move_start.y + y - m_move_touch_start.y;
+
+        let diagonal: Vector2 = picture.points[(m_picture_point_op + 2) % 4]
+        let tmp = new Picture();
+
+        tmp.x = Math.min(point.x, diagonal.x);
+        tmp.y = Math.min(point.y, diagonal.y);
+        tmp.width = Math.abs(diagonal.x - point.x);
+        tmp.height = Math.abs(diagonal.y - point.y);
+
+        let _diagonal = tmp.points[(m_picture_point_op + 2) % 4]
+
+        if (_diagonal.x == m_move_diagonal.x && _diagonal.y == m_move_diagonal.y) {
+          picture.x = tmp.x;
+          picture.y = tmp.y;
+          picture.width = tmp.width;
+          picture.height = tmp.height
+        }
+
+        if (picture.width < m_scale_min_width) picture.width = m_scale_min_width;
+        if (picture.height < m_scale_min_height) picture.height = m_scale_min_height;
+      }
+
+      if (limitMode == 'picture') {
+        if (picture.x < 0) picture.x = 0;
+        if (picture.y < 0) picture.y = 0;
+        if (picture.x + picture.width > r_width) picture.x = r_width - picture.width;
+        if (picture.y + picture.height > r_height) picture.y = r_height - picture.height;
+      }
+      else if (limitMode == 'point') {
+        if (picture.x < m_point_raduis) picture.x = m_point_raduis;
+        if (picture.y < m_point_raduis) picture.y = m_point_raduis;
+        if (picture.width + m_point_raduis * 2 > r_width) picture.width = r_width - m_point_raduis * 2;
+        if (picture.height + m_point_raduis * 2 > r_height) picture.height = r_height - m_point_raduis * 2;
+        if (picture.x + m_point_raduis + picture.width > r_width) picture.x = r_width - picture.width - m_point_raduis;
+        if (picture.y + m_point_raduis + picture.height > r_height) picture.y = r_height - picture.height - m_point_raduis;
+
+      }
+      this.requestAnimationFrame();
+    },
+    /**
+     * 添加图片
+     * @param url 图片地址
+     */
+    add(url: string) {
+      let { config } = this.properties;
+      let { m_mixer_canvas, r_width, r_height, m_mixer_context, m_pictures } = this.data
+
+      let m_add_count: number = config?.add?.count || defaultConfig.add?.count;
+
+      let m_add_scale_width: number = config?.add?.scaleWidth || defaultConfig.add?.scaleWidth;
+      let m_add_scale_height: number = config?.add?.scaleHeight || defaultConfig.add?.scaleHeight;
+
+      if (m_pictures.length >= m_add_count) throw { err_code: 1000, err_message: "上传图片数量超出限制" };
+      let img = m_mixer_canvas.createImage();
+      img.src = url;
+      img.onload = () => {
+        let { ow, oh } = scaling(img.width, img.height, r_width * m_add_scale_width, r_height * m_add_scale_height)
+        let p = new Picture();
+        p.width = ow;
+        p.height = oh;
+        p.x = r_width / 2 - ow / 2;
+        p.y = r_height / 2 - oh / 2;
+        p.url = url;
+        p.img = img;
+        m_pictures.push(p);
+        this.data.m_picture_op = m_pictures.length - 1;
+        this.requestAnimationFrame();
+      }
+    },
+    async save(): Promise<IPictureMixerSaveResult> {
+      let { m_mixer_canvas, r_width, r_height } = this.data
+      this.data.m_picture_op = -1;
+      this.requestAnimationFrame();
+      return new Promise(async (resolve, reject) => {
+        try {
+          let base64 = m_mixer_canvas.toDataURL();
+          let tempFilePath = await base64ToTempFilePath(base64)
+          resolve({
+            base64,
+            tempFilePath,
+            width: r_width,
+            height: r_height
+          })
+        } catch (error) {
+          reject(error)
+        }
+      })
+
+    }
+  }
+})
