@@ -115,20 +115,17 @@ button {
 
 #### 属性
 
-##### config
+##### config 🆕
 
 `config: IPictureMixerConfig` 配置 
 
 ``` typescript
-/**
- * 图片混合器配置
- */
 export interface IPictureMixerConfig {
   /** 1.0.1 用于改变图片清晰度 尽量不要太大 */
   definition?: number
   /** 渲染间隔 ms */
   renderInterval?: number
-  /** 允许缩放 存在bug */
+  /** 允许缩放 写的很烂 */
   allowScale?: boolean
   /** 允许移动 */
   allowMove?: boolean
@@ -157,9 +154,13 @@ export interface IPictureMixerConfig {
   },
   /** 缩放 */
   scale?: {
-    /** 最小宽度 */
+    /** 1.0.2 模式 */
+    mode?: keyof IPictureMixerConfigScaleMode
+    /** 1.0.2 最小缩放比例 */
+    minRatio?: number
+    /** 暂时还没用到 最小宽度 */
     minWidth?: number
-    /** 最大高度 */
+    /** 暂时还没用到 最大高度 */
     minHeight?: number
   },
   /** 移动 */
@@ -187,9 +188,33 @@ export interface IPictureMixerConfig {
     offsetY?: number
     width?: number
     height?: number
-  }
+  },
+  /** 1.0.2 保存默认值 */
+  save?: {} & IPictureMixerSaveParams
+}
+/**
+ * 保存图片的参数
+ */
+export interface IPictureMixerSaveParams {
+  /**
+   * 图片格式，默认为 image/png
+   */
+  type?: keyof IPictureMixerSaveType
+  /**
+   * 在指定图片格式为 image/jpeg 或 image/webp的情况下，可以从 0 到 1 的区间内选择图片的质量。如果超出取值范围，将会使用默认值 0.92。其他参数会被忽略。
+   */
+  encoderOptions?: number
 }
 
+interface IPictureMixerSaveType {
+  'image/png': string
+  'image/jpeg': string
+  'image/webp': string
+}
+interface IPictureMixerConfigScaleMode {
+  "width/height": string
+  "ratio": string
+}
 interface IPictureMixerConfigMoveLimitMode {
   /** 默认 */
   none: string
@@ -206,9 +231,9 @@ interface IPictureMixerConfigMoveLimitMode {
 
 `add(url: string)` 添加图片
 
-##### save 🆕
+##### save
 
-`async save(p: IPictureMixerSaveParams): Promise<IPictureMixerSaveResult>` 保存图片
+`async save(p?: IPictureMixerSaveParams): Promise<IPictureMixerSaveResult>` 保存图片
 
 ``` typescript
 /**

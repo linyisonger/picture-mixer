@@ -7,7 +7,7 @@ export interface IPictureMixerConfig {
   definition?: number
   /** 渲染间隔 ms */
   renderInterval?: number
-  /** 允许缩放 存在bug */
+  /** 允许缩放 写的很烂 */
   allowScale?: boolean
   /** 允许移动 */
   allowMove?: boolean
@@ -36,9 +36,13 @@ export interface IPictureMixerConfig {
   },
   /** 缩放 */
   scale?: {
-    /** 最小宽度 */
+    /** 1.0.2 模式 */
+    mode?: keyof IPictureMixerConfigScaleMode
+    /** 1.0.2 最小缩放比例 */
+    minRatio?: number
+    /** 暂时还没用到 最小宽度 */
     minWidth?: number
-    /** 最大高度 */
+    /** 暂时还没用到 最大高度 */
     minHeight?: number
   },
   /** 移动 */
@@ -66,7 +70,9 @@ export interface IPictureMixerConfig {
     offsetY?: number
     width?: number
     height?: number
-  }
+  },
+  /** 1.0.2 保存默认值 */
+  save?: {} & IPictureMixerSaveParams
 }
 /**
  * 保存的返回值
@@ -100,7 +106,10 @@ interface IPictureMixerSaveType {
   'image/jpeg': string
   'image/webp': string
 }
-
+interface IPictureMixerConfigScaleMode {
+  "width/height": string
+  "ratio": string
+}
 interface IPictureMixerConfigMoveLimitMode {
   /** 默认 */
   none: string
@@ -128,6 +137,18 @@ class Picture {
   width: number
   height: number
   img: IPictureImg
+  /** 初始值 */
+  i_x: number
+  i_y: number
+  i_width: number
+  i_height: number
+
+  constructor(x?: number, y?: number, width?: number, height?: number) {
+    this.i_x = this.x = x;
+    this.i_y = this.y = y;
+    this.i_width = this.width = width;
+    this.i_height = this.height = height;
+  }
   /**
    * 获取四个点坐标
    */
@@ -144,9 +165,9 @@ class Picture {
 const defaultConfig: IPictureMixerConfig = {
   definition: 1,
   renderInterval: 20,
-  allowScale: false,
+  allowScale: true,
   allowMove: true,
-  allowRemove: true,
+  allowRemove: false,
   allowAutoSetTop: true,
   background: "#fff",
   point: {
@@ -158,6 +179,8 @@ const defaultConfig: IPictureMixerConfig = {
     width: 2
   },
   scale: {
+    mode: "ratio",
+    minRatio: .5,
     minWidth: 40,
     minHeight: 40
   },
@@ -177,6 +200,10 @@ const defaultConfig: IPictureMixerConfig = {
     offsetY: 0,
     width: 30,
     height: 30,
+  },
+  save: {
+    type: "image/jpeg",
+    encoderOptions: 1
   }
 }
 /**
@@ -272,6 +299,9 @@ Component({
   },
   lifetimes: {
     ready() {
+
+      const dpr = wx.getSystemInfoSync().pixelRatio
+
       let config = this.properties.config;
 
       let m_point_raduis = config?.point?.raduis || defaultConfig.point.raduis
@@ -300,7 +330,6 @@ Component({
       this.data.m_move_limit_mode = m_move_limit_mode
 
 
-      const dpr = wx.getSystemInfoSync().pixelRatio
       const q = this.createSelectorQuery();
 
       q.select('#mixer').fields({ node: true, size: true })
@@ -436,6 +465,7 @@ Component({
             m_picture_point_op = i;
             this.data.m_op_mode = PictureOpMode.scale;
             this.data.m_move_start = Vector2.c(p.x, p.y);
+            this.data.m_move_touch_start = Vector2.c(p.x, p.y);
             this.data.m_move_diagonal = Vector2.c(picture.points[(i + 2) % 4].x, picture.points[(i + 2) % 4].y)
             break;
           }
@@ -466,61 +496,192 @@ Component({
       this.requestAnimationFrame()
     },
     touchmove(e) {
-      let { m_move_limit_mode, m_picture_op, m_move_diagonal, m_point_raduis, r_width, r_height, m_pictures, lasttime, m_render_interval, m_move_touch_start, m_move_start, m_picture_point_op, m_scale_min_width, m_scale_min_height } = this.data;
+      let config = this.properties.config
+      let { m_picture_op, m_point_raduis, m_pictures, lasttime, m_render_interval, m_move_start, m_scale_min_width, m_scale_min_height } = this.data;
       if (m_picture_op == -1 || timestamp() - lasttime < m_render_interval) return;
       this.data.lasttime = timestamp();
-      let { x, y } = e.changedTouches[0]
 
-      let limitMode: keyof IPictureMixerConfigMoveLimitMode = m_move_limit_mode;
-      let picture = m_pictures[m_picture_op];
+      /** 真实的宽度 */
+      let r_width: number = this.data.r_width;
+      let r_height: number = this.data.r_height;
+      /** 手指拖动的位置 */
+      let x: number = e.changedTouches[0].x
+      let y: number = e.changedTouches[0].y
+
+      /** 极限模式 */
+      let limitMode: keyof IPictureMixerConfigMoveLimitMode = this.data.m_move_limit_mode;
+      /** 点的半径 */
+      let pointRaduis: number = this.data.m_point_raduis;
+
+      /** 移动点开始的坐标 */
+      let moveTouchStart: Vector2 = this.data.m_move_touch_start;
+      /** 缩放模式 */
+      let scaleMode: keyof IPictureMixerConfigScaleMode = config?.scale?.mode || defaultConfig.scale?.mode
+      /** 缩放最小比例 */
+      let scaleMinRatio: number = config?.scale?.minRatio || defaultConfig.scale?.minRatio
+
+      let rp: Vector2 = this.resetPoint(x, y)
+      x = rp.x;
+      y = rp.y;
+
+
+      let picture: Picture = m_pictures[m_picture_op];
 
       if (this.data.m_op_mode == PictureOpMode.move) {
-        picture.x = m_move_start.x + x - m_move_touch_start.x;
-        picture.y = m_move_start.y + y - m_move_touch_start.y;
+        picture.x = m_move_start.x + x - moveTouchStart.x;
+        picture.y = m_move_start.y + y - moveTouchStart.y;
+
+        if (limitMode == 'picture') {
+          if (picture.x < 0) picture.x = 0;
+          if (picture.y < 0) picture.y = 0;
+          if (picture.x + picture.width > r_width) picture.x = r_width - picture.width;
+          if (picture.y + picture.height > r_height) picture.y = r_height - picture.height;
+        }
+        else if (limitMode == 'point') {
+          if (picture.x < m_point_raduis) picture.x = m_point_raduis;
+          if (picture.y < m_point_raduis) picture.y = m_point_raduis;
+          if (picture.x + m_point_raduis + picture.width > r_width) picture.x = r_width - picture.width - m_point_raduis;
+          if (picture.y + m_point_raduis + picture.height > r_height) picture.y = r_height - picture.height - m_point_raduis;
+        }
       }
       else if (this.data.m_op_mode == PictureOpMode.scale) {
+        let point_op: number = this.data.m_picture_point_op;
+        let point: Vector2 = picture.points[point_op]
+        let diagonal: Vector2 = this.data.m_move_diagonal
 
-        let point = picture.points[m_picture_point_op]
 
-        point.x = m_move_start.x + x - m_move_touch_start.x;
-        point.y = m_move_start.y + y - m_move_touch_start.y;
+        point.x = m_move_start.x + x - moveTouchStart.x;
+        point.y = m_move_start.y + y - moveTouchStart.y;
 
-        let diagonal: Vector2 = picture.points[(m_picture_point_op + 2) % 4]
-        let tmp = new Picture();
+        rp = this.resetPoint(point.x, point.y);
+        point.x = rp.x;
+        point.y = rp.y;
 
-        tmp.x = Math.min(point.x, diagonal.x);
-        tmp.y = Math.min(point.y, diagonal.y);
-        tmp.width = Math.abs(diagonal.x - point.x);
-        tmp.height = Math.abs(diagonal.y - point.y);
+        /** 左上 */
+        if (point_op == 0) {
+          picture.x = point.x;
+          picture.width = diagonal.x - picture.x;
+          picture.y = point.y;
+          picture.height = diagonal.y - picture.y;
 
-        let _diagonal = tmp.points[(m_picture_point_op + 2) % 4]
+          if (scaleMode == 'ratio') {
+            if (picture.width < scaleMinRatio * picture.i_width) {
+              picture.width = scaleMinRatio * picture.i_width
+              picture.x = diagonal.x - picture.width;
+            }
+            picture.height = picture.width * picture.i_height / picture.i_width;
+            picture.y = diagonal.y - picture.height;
 
-        if (_diagonal.x == m_move_diagonal.x && _diagonal.y == m_move_diagonal.y) {
-          picture.x = tmp.x;
-          picture.y = tmp.y;
-          picture.width = tmp.width;
-          picture.height = tmp.height
+            rp = this.resetPoint(picture.x, picture.y);
+            picture.y = rp.y;
+            picture.height = diagonal.y - picture.y;
+            picture.width = picture.height * picture.i_width / picture.i_height;
+            picture.x = diagonal.x - picture.width;
+          }
+
+
+          if (picture.width < m_point_raduis * 2) {
+            picture.width = m_point_raduis * 2;
+            picture.x = diagonal.x - picture.width;
+          }
+          if (picture.height < m_point_raduis * 2) {
+            picture.height = m_point_raduis * 2;
+            picture.y = diagonal.y - picture.height
+          }
+        }
+        /** 右上 */
+        else if (point_op == 1) {
+          picture.x = diagonal.x;
+          picture.y = point.y;
+          picture.width = point.x - diagonal.x;
+          picture.height = diagonal.y - point.y;
+
+          if (scaleMode == "ratio") {
+            if (picture.width < scaleMinRatio * picture.i_width) {
+              picture.width = scaleMinRatio * picture.i_width
+            }
+            picture.height = picture.width * picture.i_height / picture.i_width;
+            picture.y = diagonal.y - picture.height;
+
+            rp = this.resetPoint(picture.x + picture.width, picture.y);
+            picture.y = rp.y;
+            picture.height = diagonal.y - picture.y;
+            picture.width = picture.height * picture.i_width / picture.i_height;
+            picture.x = diagonal.x;
+          }
+
+
+          if (picture.width < m_point_raduis * 2) {
+            picture.width = m_point_raduis * 2;
+          }
+          if (picture.height < m_point_raduis * 2) {
+            picture.height = m_point_raduis * 2;
+            picture.y = diagonal.y - picture.height
+          }
+        }
+        /** 右下 */
+        else if (point_op == 2) {
+          picture.x = diagonal.x;
+          picture.y = diagonal.y;
+          picture.width = point.x - diagonal.x;
+          picture.height = point.y - diagonal.y;
+
+          if (scaleMode == "ratio") {
+            if (picture.width < scaleMinRatio * picture.i_width) {
+              picture.width = scaleMinRatio * picture.i_width
+            }
+            picture.height = picture.width * picture.i_height / picture.i_width;
+            rp = this.resetPoint(picture.x + picture.width, picture.y + picture.height);
+            picture.height = rp.y - diagonal.y;
+            picture.width = picture.height * picture.i_width / picture.i_height;
+          }
+
+
+
+          if (picture.width < m_point_raduis * 2) {
+            picture.width = m_point_raduis * 2;
+          }
+          if (picture.height < m_point_raduis * 2) {
+            picture.height = m_point_raduis * 2;
+          }
+
+        }
+        /** 左下 */
+        else if (point_op == 3) {
+          picture.x = point.x;
+          picture.y = diagonal.y;
+          picture.width = -point.x + diagonal.x;
+          picture.height = point.y - diagonal.y;
+
+
+          if (scaleMode == "ratio") {
+            if (picture.width < scaleMinRatio * picture.i_width) {
+              picture.width = scaleMinRatio * picture.i_width
+              picture.x = diagonal.x - picture.width;
+            }
+            picture.height = picture.width * picture.i_height / picture.i_width;
+
+            rp = this.resetPoint(picture.x, picture.y + picture.height);
+
+            picture.height = rp.y - diagonal.y;
+            picture.width = picture.height * picture.i_width / picture.i_height;
+            picture.x = diagonal.x - picture.width;
+          }
+
+
+
+          if (picture.width < m_point_raduis * 2) {
+            picture.width = m_point_raduis * 2;
+            picture.x = diagonal.x - picture.width;
+          }
+          if (picture.height < m_point_raduis * 2) {
+            picture.height = m_point_raduis * 2;
+          }
+
         }
 
-        if (picture.width < m_scale_min_width) picture.width = m_scale_min_width;
-        if (picture.height < m_scale_min_height) picture.height = m_scale_min_height;
       }
 
-      if (limitMode == 'picture') {
-        if (picture.x < 0) picture.x = 0;
-        if (picture.y < 0) picture.y = 0;
-        if (picture.x + picture.width > r_width) picture.x = r_width - picture.width;
-        if (picture.y + picture.height > r_height) picture.y = r_height - picture.height;
-      }
-      else if (limitMode == 'point') {
-        if (picture.x < m_point_raduis) picture.x = m_point_raduis;
-        if (picture.y < m_point_raduis) picture.y = m_point_raduis;
-        if (picture.width + m_point_raduis * 2 > r_width) picture.width = r_width - m_point_raduis * 2;
-        if (picture.height + m_point_raduis * 2 > r_height) picture.height = r_height - m_point_raduis * 2;
-        if (picture.x + m_point_raduis + picture.width > r_width) picture.x = r_width - picture.width - m_point_raduis;
-        if (picture.y + m_point_raduis + picture.height > r_height) picture.y = r_height - picture.height - m_point_raduis;
-
-      }
       this.requestAnimationFrame();
     },
     /**
@@ -541,11 +702,7 @@ Component({
       img.src = url;
       img.onload = () => {
         let { ow, oh } = scaling(img.width, img.height, r_width * m_add_scale_width, r_height * m_add_scale_height)
-        let p = new Picture();
-        p.width = ow;
-        p.height = oh;
-        p.x = r_width / 2 - ow / 2;
-        p.y = r_height / 2 - oh / 2;
+        let p = new Picture(r_width / 2 - ow / 2, r_height / 2 - oh / 2, ow, oh);
         p.url = url;
         p.img = img;
         m_pictures.push(p);
@@ -553,13 +710,20 @@ Component({
         this.requestAnimationFrame();
       }
     },
-    async save(p: IPictureMixerSaveParams): Promise<IPictureMixerSaveResult> {
+    async save(p?: IPictureMixerSaveParams): Promise<IPictureMixerSaveResult> {
       let { m_mixer_canvas, r_width, r_height } = this.data
       this.data.m_picture_op = -1;
+
+
+      let config = this.properties.config;
+      let type = p?.type || config?.save?.type || defaultConfig?.save?.type;
+      let encoderOptions = p?.encoderOptions || config?.save?.encoderOptions || defaultConfig?.save?.encoderOptions;
+
+
       this.requestAnimationFrame();
       return new Promise(async (resolve, reject) => {
         try {
-          let base64 = m_mixer_canvas.toDataURL(p.type, p.encoderOptions);
+          let base64 = m_mixer_canvas.toDataURL(type, encoderOptions);
           let tempFilePath = await base64ToTempFilePath(base64)
           resolve({
             base64,
@@ -572,6 +736,30 @@ Component({
         }
       })
 
+    },
+    resetPoint(x, y) {
+      /** 极限模式 */
+      let limitMode: keyof IPictureMixerConfigMoveLimitMode = this.data.m_move_limit_mode;
+      /** 点的半径 */
+      let pointRaduis: number = this.data.m_point_raduis;
+      /** 真实的宽度 */
+      let r_width: number = this.data.r_width;
+      let r_height: number = this.data.r_height;
+      /** 当为图片时 */
+      if (limitMode == 'picture') {
+        if (x < 0) x = 0
+        if (y < 0) y = 0
+        if (x > r_width) x = r_width;
+        if (y > r_height) y = r_height;
+      }
+      /** 当为点时 */
+      else if (limitMode == 'point') {
+        if (x < pointRaduis) x = pointRaduis
+        if (y < pointRaduis) y = pointRaduis
+        if (x > r_width - pointRaduis) x = r_width - pointRaduis;
+        if (y > r_height - pointRaduis) y = r_height - pointRaduis;
+      }
+      return Vector2.c(x, y)
     }
   }
 })
