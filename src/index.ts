@@ -445,7 +445,7 @@ Component({
           this.data.m_remove_img = m_remove_img;
         }
 
-        this.requestAnimationFrame();
+        this.render();
         this.showWatermark();
 
         this.triggerEvent("loaded", {
@@ -456,7 +456,7 @@ Component({
       });
     }
   },
-  methods: {
+  methods: { 
     showWatermark() {
       let config = this.properties.config;
       let allow_watermark: Boolean = config?.allowWatermark || defaultConfig.allowWatermark;
@@ -479,7 +479,7 @@ Component({
         m_operate_context.drawImage(m_watermark_img, watermark_x, watermark_y, watermark_width, watermark_height);
       }
     },
-    requestAnimationFrame() {
+    render() {
       let config = this.properties.config;
       let { m_operate_context, m_mixer_canvas, m_watermark_img, m_remove_img, m_line_color, m_line_width, m_point_raduis, m_point_color, r_width, r_height, m_mixer_context, m_pictures, m_picture_op } = this.data
 
@@ -542,7 +542,7 @@ Component({
         }
 
       };
-      this.triggerEvent("frame", {
+      this.triggerEvent("render", {
         pictures: m_pictures,
       })
     },
@@ -573,6 +573,9 @@ Component({
           m_pictures.splice(m_picture_op, 1);
           m_picture_op = -1;
           this.data.m_picture_op = m_picture_op;
+          this.triggerEvent("change", {
+            pictures: m_pictures,
+          })
         }
         // 如果删除的只剩一张也去展示下水印
         if (m_pictures.length == 0) this.showWatermark();
@@ -615,7 +618,7 @@ Component({
         }
         this.data.m_picture_op = m_picture_op;
       }
-      this.requestAnimationFrame()
+      this.render()
     },
     touchmove(e) {
       let config = this.properties.config
@@ -804,7 +807,7 @@ Component({
 
       }
 
-      this.requestAnimationFrame();
+      this.render();
     },
     /**
      * 添加图片
@@ -830,7 +833,7 @@ Component({
         p.img = img;
         m_pictures.push(p);
         this.data.m_picture_op = m_pictures.length - 1;
-        this.requestAnimationFrame();
+        this.render();
 
         this.triggerEvent("change", {
           pictures: m_pictures,
