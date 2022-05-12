@@ -1,6 +1,6 @@
 {
   "name": "picture-mixer",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "这是一个很'常用'的图片混合组件",
   "main": "dist/index.js",
   "keywords": [
