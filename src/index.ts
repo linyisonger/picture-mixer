@@ -18,6 +18,11 @@ export interface IPictureMixerConfig {
    *  逻辑点击哪个图片哪个图片置顶
    */
   allowAutoSetTop?: boolean
+  /**
+   * 1.0.3 允许展示水印
+   * 仅在无图的时候展示
+   */
+  allowWatermark?: boolean
   /** 背景颜色 */
   background?: string
   /** 点 */
@@ -73,6 +78,19 @@ export interface IPictureMixerConfig {
   },
   /** 1.0.2 保存默认值 */
   save?: {} & IPictureMixerSaveParams
+  /** 1.0.3 水印图片 */
+  watermark?: {
+    /** 图片地址 */
+    url?: string
+    /** 轴心点 0~1 */
+    pivotX?: number,
+    pivotY?: number,
+    offsetX?: number,
+    offsetY?: number
+    width?: number
+    height?: number,
+  },
+
 }
 /**
  * 保存的返回值
@@ -101,6 +119,24 @@ export interface IPictureMixerSaveParams {
   encoderOptions?: number
 }
 
+/**
+ * 加载完成回调参数
+ */
+export interface IPicturnMixerLoadedParams {
+  detail: {
+    background_context: CanvasRenderingContext2D,
+    width: number,
+    height: number
+  }
+}
+/**
+ * 内容变更回调参数
+ */
+export interface IPicturnMixerChangeParams {
+  detail: {
+    pictures: Picture[]
+  }
+}
 interface IPictureMixerSaveType {
   'image/png': string
   'image/jpeg': string
@@ -169,6 +205,7 @@ const defaultConfig: IPictureMixerConfig = {
   allowMove: true,
   allowRemove: false,
   allowAutoSetTop: true,
+  allowWatermark: true,
   background: "#fff",
   point: {
     color: "#B4CF66",
@@ -204,6 +241,15 @@ const defaultConfig: IPictureMixerConfig = {
   save: {
     type: "image/jpeg",
     encoderOptions: 1
+  },
+  watermark: {
+    url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACIAAAAVCAYAAAAjODzXAAABnElEQVRIibVWMW7DMAy8Bt6yJ3vn6hWe2z2d8wDOeUBnPsBzsrdr/QpnTud0z14wpQJalWS5sQ8QDFOUdBKPlB6QARF9ADgw8z7nlwIRvQFwADpm3oVu2g/pq/6zQGbhLYBHY1rKRgCcI33w/9I3KRGd2Jn/zp+mOZ3ouKmJIBWGWJ8NzWLsKqIbInq9h2kMo4j4HcyBSheI7bALSIjPWu3nQuI1fo++HfL1GtlkfFZE5NSnJJWX6i94UUJfRUSY+dkatX541NpK64lkThjCbRGRAsjRfhb6ngA0ge0yROYPERVkp22jX6dtMNayKDN3oZGIsoNiWSMLHs1kRxVnbWI/OYrSV4uQy1TGu9EjoiJN6UHIbOYoZrAaMdpomfk7dJRQEdFBQ/Sk5jZVI4JL7hTYPeRSfIc/EVOs2pjQDJm96sWpfwxrnS8XRmeeB9eNLEyxSu4uIOMvrZT/SueT7Nlpa8z4RtP5Yu2VFp9Rj5+wAEZIlm7mhkpF2Ls7/MuslNgUqBKauIrSFLbZEa0jRpRZ8Y6EZM4te3oA8AOcoLs3H/j3KAAAAABJRU5ErkJggg==",
+    pivotX: .5,
+    pivotY: .5,
+    offsetX: 0,
+    offsetY: 0,
+    width: 60,
+    height: 30,
   }
 }
 /**
@@ -274,8 +320,15 @@ Component({
     config: Object
   },
   data: {
+    m_result_canvas: null,
+    m_result_context: null,
+    m_background_canvas: null,
+    m_background_context: null,
     m_mixer_canvas: null,
     m_mixer_context: null,
+    m_operate_canvas: null,
+    m_operate_context: null,
+
     r_width: 0,
     r_height: 0,
 
@@ -332,22 +385,59 @@ Component({
 
       const q = this.createSelectorQuery();
 
+      q.select('#result').fields({ node: true, size: true })
+      q.select('#background').fields({ node: true, size: true })
       q.select('#mixer').fields({ node: true, size: true })
+      q.select('#operate').fields({ node: true, size: true })
       q.exec((res) => {
 
-        const m_mixer_canvas = res[0].node;
+
+        const m_result_canvas = res[0].node;
+        const m_background_canvas = res[1].node;
+        const m_mixer_canvas = res[2].node;
+        const m_operate_canvas = res[3].node;
+
         const r_width = res[0].width;
         const r_height = res[0].height;
+
+
+        const m_result_context = m_result_canvas.getContext('2d');
+        const m_background_context = m_background_canvas.getContext('2d')
         const m_mixer_context = m_mixer_canvas.getContext('2d')
+        const m_operate_context = m_operate_canvas.getContext('2d')
 
+
+
+        m_result_canvas.width = r_width * dpr * m_definition
+        m_background_canvas.width = r_width * dpr * m_definition
         m_mixer_canvas.width = r_width * dpr * m_definition
-        m_mixer_canvas.height = r_height * dpr * m_definition
-        m_mixer_context.scale(dpr * m_definition, dpr * m_definition);
+        m_operate_canvas.width = r_width * dpr * m_definition
 
+
+        m_result_canvas.height = r_height * dpr * m_definition
+        m_background_canvas.height = r_height * dpr * m_definition
+        m_mixer_canvas.height = r_height * dpr * m_definition
+        m_operate_canvas.height = r_height * dpr * m_definition
+
+        m_result_context.scale(dpr * m_definition, dpr * m_definition);
+        m_background_context.scale(dpr * m_definition, dpr * m_definition);
+        m_mixer_context.scale(dpr * m_definition, dpr * m_definition);
+        m_operate_context.scale(dpr * m_definition, dpr * m_definition);
+
+
+        this.data.m_result_canvas = m_result_canvas;
+        this.data.m_result_context = m_result_context;
+        this.data.m_background_canvas = m_background_canvas
+        this.data.m_background_context = m_background_context
         this.data.m_mixer_canvas = m_mixer_canvas;
         this.data.m_mixer_context = m_mixer_context;
+        this.data.m_operate_canvas = m_operate_canvas;
+        this.data.m_operate_context = m_operate_context;
+
         this.data.r_width = r_width;
         this.data.r_height = r_height;
+
+
 
         let m_remove_img = m_mixer_canvas.createImage();
         m_remove_img.src = m_remove_url;
@@ -356,22 +446,48 @@ Component({
         }
 
         this.requestAnimationFrame();
+        this.showWatermark();
+
+        this.triggerEvent("loaded", {
+          background_context: m_background_context,
+          width: r_width,
+          height: r_height
+        })
       });
     }
   },
   methods: {
+    showWatermark() {
+      let config = this.properties.config;
+      let allow_watermark: Boolean = config?.allowWatermark || defaultConfig.allowWatermark;
+      if (!allow_watermark) return;
+      let m_operate_context: CanvasRenderingContext2D = this.data.m_operate_context;
+      let m_operate_canvas = this.data.m_operate_canvas;
+      let m_watermark_url = config?.watermark?.url || defaultConfig.watermark?.url;
+      let r_width: number = this.data.r_width
+      let r_height: number = this.data.r_height
+      let m_watermark_img = m_operate_canvas.createImage();
+      m_watermark_img.src = m_watermark_url;
+      m_watermark_img.onload = () => {
+        this.data.m_watermark_img = m_watermark_img;
+        let watermark_width = config?.watermark?.width || defaultConfig.watermark.width;
+        let watermark_height = config?.watermark?.height || defaultConfig.watermark.height;
+        let watermark_pivotX = config?.watermark?.pivotX || defaultConfig.watermark.pivotX;
+        let watermark_pivotY = config?.watermark?.pivotY || defaultConfig.watermark.pivotY;
+        let watermark_x = r_width * watermark_pivotX - (config?.watermark?.offsetX || defaultConfig.watermark.offsetX) - watermark_width / 2;
+        let watermark_y = r_height * watermark_pivotY - (config?.watermark?.offsetY || defaultConfig.watermark.offsetY) - watermark_height / 2;
+        m_operate_context.drawImage(m_watermark_img, watermark_x, watermark_y, watermark_width, watermark_height);
+      }
+    },
     requestAnimationFrame() {
       let config = this.properties.config;
-      let { m_mixer_canvas, m_remove_img, m_line_color, m_line_width, m_point_raduis, m_point_color, r_width, r_height, m_mixer_context, m_pictures, m_picture_op } = this.data
+      let { m_operate_context, m_mixer_canvas, m_watermark_img, m_remove_img, m_line_color, m_line_width, m_point_raduis, m_point_color, r_width, r_height, m_mixer_context, m_pictures, m_picture_op } = this.data
 
       let allow_scale: boolean = config?.allowScale || defaultConfig.allowScale
       let allow_remove: boolean = config?.allowRemove || defaultConfig.allowRemove
 
-      let background: string = config?.background || defaultConfig.background
-
+      m_operate_context.clearRect(0, 0, r_width, r_height)
       m_mixer_context.clearRect(0, 0, r_width, r_height)
-      m_mixer_context.fillStyle = background;
-      m_mixer_context.fillRect(0, 0, r_width, r_height)
 
       // 按顺序加载图片内容
       for (let i = 0; i < m_pictures.length; i++) {
@@ -381,27 +497,27 @@ Component({
       // 给索引增加可操作点
       if (m_picture_op != -1) {
         const picture: Picture = m_pictures[m_picture_op];
-        m_mixer_context.beginPath();
-        m_mixer_context.strokeStyle = m_line_color;
-        m_mixer_context.lineWidth = m_line_width;
-        m_mixer_context.fillStyle = m_point_color;
+        m_operate_context.beginPath();
+        m_operate_context.strokeStyle = m_line_color;
+        m_operate_context.lineWidth = m_line_width;
+        m_operate_context.fillStyle = m_point_color;
 
         for (let i = 0; i < picture.points.length; i++) {
           let tmp = picture.points[i];
-          i == 0 ? m_mixer_context.moveTo(tmp.x, tmp.y) : m_mixer_context.lineTo(tmp.x, tmp.y)
+          i == 0 ? m_operate_context.moveTo(tmp.x, tmp.y) : m_operate_context.lineTo(tmp.x, tmp.y)
         }
-        m_mixer_context.closePath();
-        m_mixer_context.stroke()
+        m_operate_context.closePath();
+        m_operate_context.stroke()
 
         if (allow_scale) {
           // 点
           for (let i = 0; i < picture.points.length; i++) {
-            m_mixer_context.lineWidth = 1;
+            m_operate_context.lineWidth = 1;
             let tmp = picture.points[i];
-            m_mixer_context.beginPath();
-            m_mixer_context.arc(tmp.x, tmp.y, m_point_raduis - 1, 0, 2 * Math.PI);
-            m_mixer_context.stroke();
-            m_mixer_context.fill();
+            m_operate_context.beginPath();
+            m_operate_context.arc(tmp.x, tmp.y, m_point_raduis - 1, 0, 2 * Math.PI);
+            m_operate_context.stroke();
+            m_operate_context.fill();
           }
         }
 
@@ -422,9 +538,13 @@ Component({
           remove_pic.height = remove_height;
           this.data.m_remove_pic = remove_pic
           // 删除图标
-          m_mixer_context.drawImage(m_remove_img, remove_x, remove_y, remove_width, remove_height);
+          m_operate_context.drawImage(m_remove_img, remove_x, remove_y, remove_width, remove_height);
         }
+
       };
+      this.triggerEvent("frame", {
+        pictures: m_pictures,
+      })
     },
     touchstart(e) {
       let config = this.properties.config;
@@ -454,6 +574,8 @@ Component({
           m_picture_op = -1;
           this.data.m_picture_op = m_picture_op;
         }
+        // 如果删除的只剩一张也去展示下水印
+        if (m_pictures.length == 0) this.showWatermark();
       }
       // 判断是否缩放图片
       if (m_picture_op != -1 && allow_scale) {
@@ -690,8 +812,9 @@ Component({
      */
     add(url: string) {
       let { config } = this.properties;
-      let { m_mixer_canvas, r_width, r_height, m_mixer_context, m_pictures } = this.data
+      let { m_mixer_canvas, r_width, r_height, m_mixer_context } = this.data
 
+      let m_pictures: Picture[] = this.data.m_pictures;
       let m_add_count: number = config?.add?.count || defaultConfig.add?.count;
 
       let m_add_scale_width: number = config?.add?.scaleWidth || defaultConfig.add?.scaleWidth;
@@ -708,22 +831,39 @@ Component({
         m_pictures.push(p);
         this.data.m_picture_op = m_pictures.length - 1;
         this.requestAnimationFrame();
+
+        this.triggerEvent("change", {
+          pictures: m_pictures,
+        })
+
       }
     },
     async save(p?: IPictureMixerSaveParams): Promise<IPictureMixerSaveResult> {
-      let { m_mixer_canvas, r_width, r_height } = this.data
-      this.data.m_picture_op = -1;
-
-
       let config = this.properties.config;
+
+      let { m_result_context, m_result_canvas, r_width, r_height } = this.data
+
       let type = p?.type || config?.save?.type || defaultConfig?.save?.type;
       let encoderOptions = p?.encoderOptions || config?.save?.encoderOptions || defaultConfig?.save?.encoderOptions;
 
 
-      this.requestAnimationFrame();
+      let m_pictures: Picture[] = this.data.m_pictures
+      let background: string = config?.background || defaultConfig.background;
+
+      m_result_context.clearRect(0, 0, r_width, r_height)
+      m_result_context.fillStyle = background;
+      m_result_context.fillRect(0, 0, r_width, r_height)
+
+      // 按顺序加载图片内容
+      for (let i = 0; i < m_pictures.length; i++) {
+        const picture = m_pictures[i];
+        m_result_context.drawImage(picture.img, picture.x, picture.y, picture.width, picture.height);
+      }
+
       return new Promise(async (resolve, reject) => {
         try {
-          let base64 = m_mixer_canvas.toDataURL(type, encoderOptions);
+          let base64 = m_result_canvas.toDataURL(type, encoderOptions);
+          m_result_context.clearRect(0, 0, r_width, r_height)
           let tempFilePath = await base64ToTempFilePath(base64)
           resolve({
             base64,

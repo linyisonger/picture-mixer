@@ -9,7 +9,12 @@
   display: inline-flex;
 }
 .pm-canvas,
-.mixer {
+.canvas {
   width: inherit;
   height: inherit;
+}
+.mixer,
+.operate,
+.background {
+  position: absolute;
 }

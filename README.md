@@ -15,6 +15,10 @@
 
 ![image](https://img2022.cnblogs.com/blog/1415778/202205/1415778-20220510101636124-1571709519.gif)
 
+#### 层级
+
+![image](https://img2022.cnblogs.com/blog/1415778/202205/1415778-20220511171941878-74183563.png)
+
 #### 使用
 
 新建小程序，如果存在跳过此步骤。
@@ -120,6 +124,9 @@ button {
 `config: IPictureMixerConfig` 配置 
 
 ``` typescript
+/**
+ * 图片混合器配置
+ */
 export interface IPictureMixerConfig {
   /** 1.0.1 用于改变图片清晰度 尽量不要太大 */
   definition?: number
@@ -136,6 +143,11 @@ export interface IPictureMixerConfig {
    *  逻辑点击哪个图片哪个图片置顶
    */
   allowAutoSetTop?: boolean
+  /**
+   * 1.0.3 允许展示水印
+   * 仅在无图的时候展示
+   */
+  allowWatermark?: boolean
   /** 背景颜色 */
   background?: string
   /** 点 */
@@ -191,6 +203,18 @@ export interface IPictureMixerConfig {
   },
   /** 1.0.2 保存默认值 */
   save?: {} & IPictureMixerSaveParams
+  /** 1.0.3 水印图片 */
+  watermark?: {
+    /** 图片地址 */
+    url?: string
+    /** 轴心点 0~1 */
+    pivotX?: number,
+    pivotY?: number,
+    offsetX?: number,
+    offsetY?: number
+    width?: number
+    height?: number,
+  },
 }
 /**
  * 保存图片的参数
@@ -265,6 +289,71 @@ export interface IPictureMixerSaveResult {
   width: number,
   /** 渲染的图片高度 */
   height: number
+}
+```
+
+#### 事件
+
+##### loaded
+
+`loaded(e:IPicturnMixerLoadedParams)` 加载完成
+
+```typescript
+/**
+ * 加载完成回调参数
+ */
+export interface IPicturnMixerLoadedParams {
+  detail: {
+    background_context: CanvasRenderingContext2D,
+    width: number,
+    height: number
+  }
+}
+```
+
+##### change 
+
+`change(e:IPicturnMixerLoadedParams)` 内容变更
+
+```typescript
+/**
+ * 内容变更回调参数
+ */
+export interface IPicturnMixerChangeParams {
+  detail: {
+    pictures: Picture[]
+  }
+}
+class Picture {
+  url: string
+  x: number
+  y: number
+  width: number
+  height: number
+  img: IPictureImg
+  /** 初始值 */
+  i_x: number
+  i_y: number
+  i_width: number
+  i_height: number
+
+  constructor(x?: number, y?: number, width?: number, height?: number) {
+    this.i_x = this.x = x;
+    this.i_y = this.y = y;
+    this.i_width = this.width = width;
+    this.i_height = this.height = height;
+  }
+  /**
+   * 获取四个点坐标
+   */
+  get points(): Vector2[] {
+    return [
+      Vector2.c(this.x, this.y),
+      Vector2.c(this.x + this.width, this.y),
+      Vector2.c(this.x + this.width, this.y + this.height),
+      Vector2.c(this.x, this.y + this.height),
+    ]
+  }
 }
 ```
 
