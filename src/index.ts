@@ -1,4 +1,5 @@
 import { Vector2 } from "ru-toolkit-mathematics"
+
 /**
  * 图片混合器配置
  */
@@ -118,7 +119,6 @@ export interface IPictureMixerSaveParams {
    */
   encoderOptions?: number
 }
-
 /**
  * 加载完成回调参数
  */
@@ -357,21 +357,21 @@ Component({
 
       let config = this.properties.config;
 
-      let m_point_raduis = config?.point?.raduis || defaultConfig.point.raduis
-      let m_point_color = config?.point?.color || defaultConfig.point.color;
+      let m_point_raduis = config?.point?.raduis ?? defaultConfig.point.raduis
+      let m_point_color = config?.point?.color ?? defaultConfig.point.color;
 
-      let m_line_color = config?.line?.color || defaultConfig.line.color;
-      let m_line_width = config?.line?.width || defaultConfig.line.width;
-      let m_render_interval = config?.renderInterval || defaultConfig.renderInterval
+      let m_line_color = config?.line?.color ?? defaultConfig.line.color;
+      let m_line_width = config?.line?.width ?? defaultConfig.line.width;
+      let m_render_interval = config?.renderInterval ?? defaultConfig.renderInterval
 
-      let m_scale_min_width = config?.scale?.minWidth || defaultConfig.scale.minWidth;
-      let m_scale_min_height = config?.scale?.minHeight || defaultConfig.scale.minHeight;
+      let m_scale_min_width = config?.scale?.minWidth ?? defaultConfig.scale.minWidth;
+      let m_scale_min_height = config?.scale?.minHeight ?? defaultConfig.scale.minHeight;
 
-      let m_move_limit_mode = config?.move?.limitMode || defaultConfig.move?.limitMode;
+      let m_move_limit_mode = config?.move?.limitMode ?? defaultConfig.move?.limitMode;
 
-      let m_remove_url = config?.remove?.url || defaultConfig.remove?.url;
+      let m_remove_url = config?.remove?.url ?? defaultConfig.remove?.url;
 
-      let m_definition: number = config?.definition || defaultConfig.definition
+      let m_definition: number = config?.definition ?? defaultConfig.definition
 
       this.data.m_point_raduis = m_point_raduis;
       this.data.m_point_color = m_point_color;
@@ -456,26 +456,26 @@ Component({
       });
     }
   },
-  methods: { 
+  methods: {
     showWatermark() {
       let config = this.properties.config;
-      let allow_watermark: Boolean = config?.allowWatermark || defaultConfig.allowWatermark;
+      let allow_watermark: Boolean = config?.allowWatermark ?? defaultConfig.allowWatermark;
       if (!allow_watermark) return;
       let m_operate_context: CanvasRenderingContext2D = this.data.m_operate_context;
       let m_operate_canvas = this.data.m_operate_canvas;
-      let m_watermark_url = config?.watermark?.url || defaultConfig.watermark?.url;
+      let m_watermark_url = config?.watermark?.url ?? defaultConfig.watermark?.url;
       let r_width: number = this.data.r_width
       let r_height: number = this.data.r_height
       let m_watermark_img = m_operate_canvas.createImage();
       m_watermark_img.src = m_watermark_url;
       m_watermark_img.onload = () => {
         this.data.m_watermark_img = m_watermark_img;
-        let watermark_width = config?.watermark?.width || defaultConfig.watermark.width;
-        let watermark_height = config?.watermark?.height || defaultConfig.watermark.height;
-        let watermark_pivotX = config?.watermark?.pivotX || defaultConfig.watermark.pivotX;
-        let watermark_pivotY = config?.watermark?.pivotY || defaultConfig.watermark.pivotY;
-        let watermark_x = r_width * watermark_pivotX - (config?.watermark?.offsetX || defaultConfig.watermark.offsetX) - watermark_width / 2;
-        let watermark_y = r_height * watermark_pivotY - (config?.watermark?.offsetY || defaultConfig.watermark.offsetY) - watermark_height / 2;
+        let watermark_width = config?.watermark?.width ?? defaultConfig.watermark.width;
+        let watermark_height = config?.watermark?.height ?? defaultConfig.watermark.height;
+        let watermark_pivotX = config?.watermark?.pivotX ?? defaultConfig.watermark.pivotX;
+        let watermark_pivotY = config?.watermark?.pivotY ?? defaultConfig.watermark.pivotY;
+        let watermark_x = r_width * watermark_pivotX - (config?.watermark?.offsetX ?? defaultConfig.watermark.offsetX) - watermark_width / 2;
+        let watermark_y = r_height * watermark_pivotY - (config?.watermark?.offsetY ?? defaultConfig.watermark.offsetY) - watermark_height / 2;
         m_operate_context.drawImage(m_watermark_img, watermark_x, watermark_y, watermark_width, watermark_height);
       }
     },
@@ -483,8 +483,8 @@ Component({
       let config = this.properties.config;
       let { m_operate_context, m_mixer_canvas, m_watermark_img, m_remove_img, m_line_color, m_line_width, m_point_raduis, m_point_color, r_width, r_height, m_mixer_context, m_pictures, m_picture_op } = this.data
 
-      let allow_scale: boolean = config?.allowScale || defaultConfig.allowScale
-      let allow_remove: boolean = config?.allowRemove || defaultConfig.allowRemove
+      let allow_scale: boolean = config?.allowScale ?? defaultConfig.allowScale
+      let allow_remove: boolean = config?.allowRemove ?? defaultConfig.allowRemove
 
       m_operate_context.clearRect(0, 0, r_width, r_height)
       m_mixer_context.clearRect(0, 0, r_width, r_height)
@@ -523,12 +523,12 @@ Component({
 
         /** 允许删除 */
         if (allow_remove) {
-          let remove_width = config?.remove?.width || defaultConfig.remove.width;
-          let remove_height = config?.remove?.height || defaultConfig.remove.height;
-          let remove_pivotX = config?.remove?.pivotX || defaultConfig.remove.pivotX;
-          let remove_pivotY = config?.remove?.pivotY || defaultConfig.remove.pivotY;
-          let remove_x = picture.x + picture.width * remove_pivotX - (config?.remove?.offsetX || defaultConfig.remove.offsetX) - remove_width / 2;
-          let remove_y = picture.y + picture.height * remove_pivotY - (config?.remove?.offsetY || defaultConfig.remove.offsetY) - remove_height / 2;
+          let remove_width = config?.remove?.width ?? defaultConfig.remove.width;
+          let remove_height = config?.remove?.height ?? defaultConfig.remove.height;
+          let remove_pivotX = config?.remove?.pivotX ?? defaultConfig.remove.pivotX;
+          let remove_pivotY = config?.remove?.pivotY ?? defaultConfig.remove.pivotY;
+          let remove_x = picture.x + picture.width * remove_pivotX - (config?.remove?.offsetX ?? defaultConfig.remove.offsetX) - remove_width / 2;
+          let remove_y = picture.y + picture.height * remove_pivotY - (config?.remove?.offsetY ?? defaultConfig.remove.offsetY) - remove_height / 2;
 
           let remove_pic = new Picture();
           remove_pic.img = m_remove_img;
@@ -551,11 +551,11 @@ Component({
 
       let { m_point_raduis, m_picture_op, m_picture_point_op } = this.data;
       // 允许缩放
-      let allow_scale: boolean = config?.allowScale || defaultConfig.allowScale
+      let allow_scale: boolean = config?.allowScale ?? defaultConfig.allowScale
 
-      let allow_remove: boolean = config?.allowRemove || defaultConfig.allowRemove
+      let allow_remove: boolean = config?.allowRemove ?? defaultConfig.allowRemove
       // 自动设置置顶
-      let allow_auto_set_top: boolean = config?.allowAutoSetTop || defaultConfig.allowAutoSetTop
+      let allow_auto_set_top: boolean = config?.allowAutoSetTop ?? defaultConfig.allowAutoSetTop
 
       let m_pictures: Picture[] = this.data.m_pictures;
       let { x, y } = e.changedTouches[0]
@@ -641,9 +641,9 @@ Component({
       /** 移动点开始的坐标 */
       let moveTouchStart: Vector2 = this.data.m_move_touch_start;
       /** 缩放模式 */
-      let scaleMode: keyof IPictureMixerConfigScaleMode = config?.scale?.mode || defaultConfig.scale?.mode
+      let scaleMode: keyof IPictureMixerConfigScaleMode = config?.scale?.mode ?? defaultConfig.scale?.mode
       /** 缩放最小比例 */
-      let scaleMinRatio: number = config?.scale?.minRatio || defaultConfig.scale?.minRatio
+      let scaleMinRatio: number = config?.scale?.minRatio ?? defaultConfig.scale?.minRatio
 
       let rp: Vector2 = this.resetPoint(x, y)
       x = rp.x;
@@ -818,10 +818,10 @@ Component({
       let { m_mixer_canvas, r_width, r_height, m_mixer_context } = this.data
 
       let m_pictures: Picture[] = this.data.m_pictures;
-      let m_add_count: number = config?.add?.count || defaultConfig.add?.count;
+      let m_add_count: number = config?.add?.count ?? defaultConfig.add?.count;
 
-      let m_add_scale_width: number = config?.add?.scaleWidth || defaultConfig.add?.scaleWidth;
-      let m_add_scale_height: number = config?.add?.scaleHeight || defaultConfig.add?.scaleHeight;
+      let m_add_scale_width: number = config?.add?.scaleWidth ?? defaultConfig.add?.scaleWidth;
+      let m_add_scale_height: number = config?.add?.scaleHeight ?? defaultConfig.add?.scaleHeight;
 
       if (m_pictures.length >= m_add_count) throw { err_code: 1000, err_message: "上传图片数量超出限制" };
       let img = m_mixer_canvas.createImage();
@@ -846,12 +846,12 @@ Component({
 
       let { m_result_context, m_result_canvas, r_width, r_height } = this.data
 
-      let type = p?.type || config?.save?.type || defaultConfig?.save?.type;
-      let encoderOptions = p?.encoderOptions || config?.save?.encoderOptions || defaultConfig?.save?.encoderOptions;
+      let type = p?.type ?? config?.save?.type ?? defaultConfig?.save?.type;
+      let encoderOptions = p?.encoderOptions ?? config?.save?.encoderOptions ?? defaultConfig?.save?.encoderOptions;
 
 
       let m_pictures: Picture[] = this.data.m_pictures
-      let background: string = config?.background || defaultConfig.background;
+      let background: string = config?.background ?? defaultConfig.background;
 
       m_result_context.clearRect(0, 0, r_width, r_height)
       m_result_context.fillStyle = background;
