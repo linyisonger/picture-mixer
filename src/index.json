@@ -1,7 +1,6 @@
 {
   "component": true,
-  "usingComponents": {},
-  "componentGenerics": {
-    "genericsTest": true
+  "usingComponents": {
+    "rotate-picture": "./components/rotate-picture/index"
   }
 }

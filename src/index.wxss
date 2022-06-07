@@ -18,3 +18,8 @@
 .background {
   position: absolute;
 }
+
+.rotate {
+  position: absolute;
+  left: 10000000%;
+}

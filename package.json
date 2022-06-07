@@ -13,10 +13,7 @@
     "build": "gulp",
     "dist": "npm run build",
     "clean-dev": "gulp clean --develop",
-    "clean": "gulp clean",
-    "test": "jest --bail",
-    "test-debug": "node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand --bail",
-    "coverage": "jest ./test/* --coverage --bail"
+    "clean": "gulp clean"
   },
   "miniprogram": "dist",
   "files": [
@@ -52,7 +49,6 @@
     "gulp-less": "^4.0.1",
     "gulp-rename": "^1.4.0",
     "gulp-sourcemaps": "^2.6.5",
-    "jest": "^23.5.0",
     "miniprogram-api-typings": "^2.12.0",
     "miniprogram-simulate": "^1.2.5",
     "thread-loader": "^2.1.3",

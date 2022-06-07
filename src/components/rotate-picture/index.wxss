@@ -1,0 +1,9 @@
+:host {
+  display: inline-flex;
+  width: inherit;
+  height: inherit;
+}
+.canvas {
+  width: inherit;
+  height: inherit;
+}

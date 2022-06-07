@@ -1,4 +1,5 @@
 <view class="pm-canvas">
+    <rotate-picture id="rp" class="canvas rotate"></rotate-picture>
     <canvas type="2d" class="canvas result" id="result"></canvas>
     <canvas type="2d" class="canvas background" id="background"></canvas>
     <canvas type="2d" class="canvas mixer" id="mixer"></canvas>
