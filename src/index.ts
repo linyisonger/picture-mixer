@@ -444,8 +444,6 @@ Component({
       q.select('#mixer').fields({ node: true, size: true })
       q.select('#operate').fields({ node: true, size: true })
       q.exec(async (res) => {
-        console.log(res);
-
         const resultCanvas = res[0].node;
         const backgroundCanvas = res[1].node;
         const mixerCanvas = res[2].node;
@@ -479,7 +477,7 @@ Component({
         operateContext.scale(dpr * definition, dpr * definition);
 
 
-        this.data.resultContext = resultContext;
+        this.data.resultCanvas = resultCanvas;
         this.data.resultContext = resultContext;
         this.data.backgroundCanvas = backgroundCanvas
         this.data.backgroundContext = backgroundContext
@@ -506,7 +504,7 @@ Component({
         this.showWatermark();
 
         this.triggerEvent("loaded", {
-          background_context: backgroundContext,
+          backgroundContext: backgroundContext,
           width: operateWidth,
           height: operateHeight
         })
@@ -514,7 +512,7 @@ Component({
     }
   },
   methods: {
-    async showWatermark() {
+    async watermark() {
       let config = this.properties.config;
       let allowWatermark: Boolean = config?.allowWatermark ?? defaultConfig.allowWatermark;
       if (!allowWatermark) return;
@@ -529,6 +527,12 @@ Component({
       let watermarkY = data.operateHeight * watermarkPivotY - (config?.watermark?.offsetY ?? defaultConfig.watermark.offsetY) - watermarkHeight / 2;
       data.operateContext.drawImage(watermarkImage, watermarkX, watermarkY, watermarkWidth, watermarkHeight);
       this.data.watermarkImage = watermarkImage;
+    },
+    /**
+     * @deprecated change watermark()
+     */
+    async showWatermark() {
+      await this.watermark();
     },
     render() {
       let config: IPictureMixerConfig = this.properties.config;
@@ -600,8 +604,12 @@ Component({
           let rotateHeight = config?.rotate?.height ?? defaultConfig.rotate.height;
           let rotatePivotX = config?.rotate?.pivotX ?? defaultConfig.rotate.pivotX;
           let rotatePivotY = config?.rotate?.pivotY ?? defaultConfig.rotate.pivotY;
-          let rotateX = picture.x + picture.width * rotatePivotX - (config?.rotate?.offsetX ?? defaultConfig.rotate.offsetX) - rotateWidth / 2;
-          let rotateY = picture.y + picture.height * rotatePivotY - (config?.rotate?.offsetY ?? defaultConfig.rotate.offsetY) - rotateHeight / 2;
+          let pictureWidth = picture.width;
+          let pictureHeight = picture.height;
+
+
+          let rotateX = picture.x + pictureWidth * rotatePivotX - (config?.rotate?.offsetX ?? defaultConfig.rotate.offsetX) - rotateWidth / 2;
+          let rotateY = picture.y + pictureHeight * rotatePivotY - (config?.rotate?.offsetY ?? defaultConfig.rotate.offsetY) - rotateHeight / 2;
 
 
           let rotatePicture = new Picture();
@@ -635,7 +643,9 @@ Component({
         moveTouchStart,
         pictures,
         moveLimitMode,
-        pointRaduis
+        pointRaduis,
+        operateWidth,
+        operateHeight
       } = data;
 
 
@@ -669,12 +679,35 @@ Component({
         if (pictureOperatedIndex != -1 && Vector2.checkInRectangle(Vector2.c(x, y), rotatePicture.points[0], rotatePicture.points[1], rotatePicture.points[2])) {
           this.data.operatedMode = PictureOpMode.rotate;
           const picture = pictures[pictureOperatedIndex];
+
+
+          const width = picture.width;
+          const height = picture.height;
+
+          // 中心点旋转逻辑
+          const centerX = picture.x + picture.width / 2
+          const centerY = picture.y + picture.height / 2
           const rp: IRotatePictureRotateRes = await this.selectComponent("#rp").rotate({ image: picture.img, angle: 90 })
           picture.img = await createImage(mixerCanvas, rp.base64);
-          let tmp = picture.width;
-          picture.width = picture.height;
-          picture.height = tmp;
+          picture.x = centerX - height / 2;
+          picture.y = centerY - width / 2;
+          picture.width = height;
+          picture.height = width;
           picture.angle += 90;
+
+          if (moveLimitMode == 'picture') {
+            if (picture.x < 0) picture.x = 0;
+            if (picture.y < 0) picture.y = 0;
+            if (picture.x + picture.width > operateWidth) picture.x = operateWidth - picture.width;
+            if (picture.y + picture.height > operateHeight) picture.y = operateHeight - picture.height;
+          }
+          else if (moveLimitMode == 'point') {
+            if (picture.x < pointRaduis) picture.x = pointRaduis;
+            if (picture.y < pointRaduis) picture.y = pointRaduis;
+            if (picture.x + pointRaduis + picture.width > operateWidth) picture.x = operateWidth - picture.width - pointRaduis;
+            if (picture.y + pointRaduis + picture.height > operateHeight) picture.y = operateHeight - picture.height - pointRaduis;
+          }
+
           this.triggerEvent("change", { pictures: pictures })
         }
       }
@@ -741,7 +774,7 @@ Component({
       /** 缩放最小比例 */
       let scaleMinRatio: number = config?.scale?.minRatio ?? defaultConfig.scale?.minRatio
 
-      let rp: Vector2 = this.resetPoint(x, y)
+      let rp: Vector2 = this.limitPoint(x, y)
 
       x = rp.x;
       y = rp.y;
@@ -773,7 +806,7 @@ Component({
         point.x = moveStart.x + x - moveTouchStart.x;
         point.y = moveStart.y + y - moveTouchStart.y;
 
-        rp = this.resetPoint(point.x, point.y);
+        rp = this.limitPoint(point.x, point.y);
         point.x = rp.x;
         point.y = rp.y;
 
@@ -792,7 +825,7 @@ Component({
             picture.height = picture.width * picture.initialHeight / picture.initialWidth;
             picture.y = diagonal.y - picture.height;
 
-            rp = this.resetPoint(picture.x, picture.y);
+            rp = this.limitPoint(picture.x, picture.y);
             picture.y = rp.y;
             picture.height = diagonal.y - picture.y;
             picture.width = picture.height * picture.initialWidth / picture.initialHeight;
@@ -823,7 +856,7 @@ Component({
             picture.height = picture.width * picture.initialHeight / picture.initialWidth;
             picture.y = diagonal.y - picture.height;
 
-            rp = this.resetPoint(picture.x + picture.width, picture.y);
+            rp = this.limitPoint(picture.x + picture.width, picture.y);
             picture.y = rp.y;
             picture.height = diagonal.y - picture.y;
             picture.width = picture.height * picture.initialWidth / picture.initialHeight;
@@ -851,7 +884,7 @@ Component({
               picture.width = scaleMinRatio * picture.initialWidth
             }
             picture.height = picture.width * picture.initialHeight / picture.initialWidth;
-            rp = this.resetPoint(picture.x + picture.width, picture.y + picture.height);
+            rp = this.limitPoint(picture.x + picture.width, picture.y + picture.height);
             picture.height = rp.y - diagonal.y;
             picture.width = picture.height * picture.initialWidth / picture.initialHeight;
           }
@@ -881,7 +914,7 @@ Component({
             }
             picture.height = picture.width * picture.initialHeight / picture.initialWidth;
 
-            rp = this.resetPoint(picture.x, picture.y + picture.height);
+            rp = this.limitPoint(picture.x, picture.y + picture.height);
 
             picture.height = rp.y - diagonal.y;
             picture.width = picture.height * picture.initialWidth / picture.initialHeight;
@@ -973,7 +1006,8 @@ Component({
       })
 
     },
-    resetPoint(x: number, y: number) {
+
+    limitPoint(x: number, y: number) {
       let { moveLimitMode, pointRaduis, operateWidth, operateHeight }: IData = this.data;
       /** 当为图片时 */
       if (moveLimitMode == 'picture') {

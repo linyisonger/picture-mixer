@@ -125,10 +125,27 @@ button {
 
 ``` typescript
 /**
+ * 图像操作按钮
+ */
+export interface IPictureOperateButton {
+  /** 图片地址 */
+  url?: string
+  /** 轴心点 0~1 */
+  pivotX?: number,
+  pivotY?: number,
+  /** 相对坐标 */
+  offsetX?: number
+  offsetY?: number
+  width?: number
+  height?: number
+}
+/**
  * 图片混合器配置
  */
 export interface IPictureMixerConfig {
-  /** 1.0.1 用于改变图片清晰度 尽量不要太大 */
+  /** 用于改变图片清晰度 尽量不要太大 
+   * @version 1.0.1 
+   */
   definition?: number
   /** 渲染间隔 ms */
   renderInterval?: number
@@ -138,14 +155,19 @@ export interface IPictureMixerConfig {
   allowMove?: boolean
   /** 允许删除 */
   allowRemove?: boolean
+  /** 允许旋转
+   * @version 1.0.4
+   */
+  allowRotate?: boolean
   /**
    *  允许自动设置置顶
    *  逻辑点击哪个图片哪个图片置顶
    */
   allowAutoSetTop?: boolean
   /**
-   * 1.0.3 允许展示水印
+   * 允许展示水印
    * 仅在无图的时候展示
+   * @version 1.0.3
    */
   allowWatermark?: boolean
   /** 背景颜色 */
@@ -189,32 +211,21 @@ export interface IPictureMixerConfig {
     scaleHeight?: number
   },
   /** 删除 */
-  remove?: {
-    /** 图片地址 */
-    url?: string
-    /** 轴心点 0~1 */
-    pivotX?: number,
-    pivotY?: number,
-    /** 相对坐标 */
-    offsetX?: number
-    offsetY?: number
-    width?: number
-    height?: number
-  },
-  /** 1.0.2 保存默认值 */
+  remove?: IPictureOperateButton,
+  /** 保存默认值
+   * @version 1.0.3
+   */
   save?: {} & IPictureMixerSaveParams
-  /** 1.0.3 水印图片 */
-  watermark?: {
-    /** 图片地址 */
-    url?: string
-    /** 轴心点 0~1 */
-    pivotX?: number,
-    pivotY?: number,
-    offsetX?: number,
-    offsetY?: number
-    width?: number
-    height?: number,
-  },
+  /** 水印图片
+   * @version 1.0.2
+   */
+  watermark?: IPictureOperateButton
+  /**
+   * 旋转配置
+   * @version 1.0.4
+   */
+  rotate?: IPictureOperateButton
+
 }
 /**
  * 保存图片的参数
@@ -304,7 +315,7 @@ export interface IPictureMixerSaveResult {
  */
 export interface IPicturnMixerLoadedParams {
   detail: {
-    background_context: CanvasRenderingContext2D,
+    backgroundContext: CanvasRenderingContext2D,
     width: number,
     height: number
   }
@@ -330,29 +341,62 @@ class Picture {
   y: number
   width: number
   height: number
-  img: IPictureImg
+  img: CanvasImageSource
   /** 初始值 */
-  i_x: number
-  i_y: number
-  i_width: number
-  i_height: number
+  initialX: number
+  initialY: number
+  angle: number
+
+  private _initialWidth: number
+  private _initialHeight: number
+
+
+  get initialWidth() {
+    if (this.angle % 180 == 0)
+      return this._initialWidth
+    else
+      return this._initialHeight;
+  }
+  get initialHeight() {
+    if (this.angle % 180 == 0)
+      return this._initialHeight
+    else
+      return this._initialWidth;
+
+  }
+
+  set initialWidth(val) {
+    this._initialWidth = val;
+  }
+  set initialHeight(val) {
+    this._initialHeight = val;
+  }
 
   constructor(x?: number, y?: number, width?: number, height?: number) {
-    this.i_x = this.x = x;
-    this.i_y = this.y = y;
-    this.i_width = this.width = width;
-    this.i_height = this.height = height;
+    this.initialX = this.x = x;
+    this.initialY = this.y = y;
+    this.initialWidth = this.width = width;
+    this.initialHeight = this.height = height;
+    this.angle = 0;
+  }
+
+  get leftTop() {
+    return Vector2.c(this.x, this.y)
+  }
+  get rightTop() {
+    return Vector2.c(this.x + this.width, this.y)
+  }
+  get rightBottom() {
+    return Vector2.c(this.x + this.width, this.y + this.height)
+  }
+  get leftBottom() {
+    return Vector2.c(this.x, this.y + this.height)
   }
   /**
    * 获取四个点坐标
    */
   get points(): Vector2[] {
-    return [
-      Vector2.c(this.x, this.y),
-      Vector2.c(this.x + this.width, this.y),
-      Vector2.c(this.x + this.width, this.y + this.height),
-      Vector2.c(this.x, this.y + this.height),
-    ]
+    return [this.leftTop, this.rightTop, this.rightBottom, this.leftBottom]
   }
 }
 ```
